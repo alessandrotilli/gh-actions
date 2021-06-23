@@ -147,7 +147,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: ${{ needs.fetch.outputs.skip_mac == 'true' && [ubuntu-20.04] || [ubuntu-20.04, macOS-10.15] }}
+        os: ${{ needs.fetch.outputs.skip_mac == 'true' && '[ubuntu-20.04]' || '[ubuntu-20.04, macOS-10.15]' }}
 
     steps:
       - name: set env
