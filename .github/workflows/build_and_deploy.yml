@@ -1,0 +1,296 @@
+name: Build and deploy
+
+on:
+  release:
+    # published: quando draft passa da true a false
+    # released: quando prerelease passa da true a false
+    types: [ published, released ]
+
+jobs:
+  fetch:
+    name: Fetch release props
+    runs-on: ubuntu-20.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: get tag
+        run: echo "::set-output name=tag::${GITHUB_REF#refs/*/}"
+        id: get-tag
+
+      - name: print event
+        run: |
+          cat <<EOT >> _event.json
+          ${{ toJSON(github.event) }}
+          EOT
+          cat _event.json
+          rm _event.json
+
+      - name: fetch release props
+        run: |
+          JSON=$(curl \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ steps.get-tag.outputs.tag }})
+          ASSET_URL=$(jq '.assets[] | select(.name == "build.props").url' <<< $JSON | tr -d '"')
+          UPLOAD_URL=$(jq '.upload_url' <<< $JSON | tr -d '"')
+          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H 'Accept: application/octet-stream' $ASSET_URL >> build.props
+          export BUILD_PROPS="$(cat build.props)"
+          BUILD_PROPS="${BUILD_PROPS//'%'/'%25'}"
+          BUILD_PROPS="${BUILD_PROPS//$'\n'/'%0A'}"
+          BUILD_PROPS="${BUILD_PROPS//$'\r'/'%0D'}"
+          echo "::set-output name=props::$BUILD_PROPS"
+          echo "::set-output name=upload_url::$UPLOAD_URL"
+        id: read_props
+
+      - name: print output
+        id: env_props
+        run: |
+          echo ${{ steps.read_props.outputs.props }}
+          echo "${{ steps.read_props.outputs.props }}" >> $GITHUB_ENV
+          echo "::set-output name=skip_win::${{ includes(env.APP_PLATFORMS, w) == false }}"
+          echo "::set-output name=skip_mac::${{ includes(env.APP_PLATFORMS, m) == false }}"
+          echo "::set-output name=skip_linux::${{ includes(env.APP_PLATFORMS, l) == false }}"
+          echo "::set-output name=dev_release::${{ env.DEV_RELEASE == 'true' }}"
+
+    outputs:
+      build_props: ${{ steps.read_props.outputs.props }}
+      upload_url: ${{ steps.read_props.outputs.upload_url }}
+      release_tag: ${{ steps.get-tag.outputs.tag }}
+      skip_win: ${{ steps.env_props.outputs.skip_win }}
+      skip_mac: ${{ steps.env_props.outputs.skip_mac }}
+      skip_linux: ${{ steps.env_props.outputs.skip_linux }}
+      dev_release: ${{ steps.env_props.outputs.dev_release }}
+
+
+
+  build:
+    name: Build html5-app
+    runs-on: ubuntu-20.04
+    needs: fetch
+    if: github.event.action == 'published'
+
+    steps:
+      - name: print out
+        run: |
+          echo "${{ needs.fetch.outputs.skip_win }}"
+          echo "${{ needs.fetch.outputs.skip_mac }}"
+          echo "${{ needs.fetch.outputs.skip_linux }}"
+          echo "${{ needs.fetch.outputs.dev_release }}"
+
+  # build:
+  #   name: Build html5-app
+  #   runs-on: ubuntu-20.04
+  #   needs: fetch
+  #   if: github.event.action == 'published'
+
+  #   steps:
+  #     - name: keyscan bb
+  #       run: mkdir -p ~/.ssh && ssh-keyscan bitbucket.org >> ~/.ssh/known_hosts
+
+  #     - name: set ssh key
+  #       uses: webfactory/ssh-agent@v0.4.1
+  #       with:
+  #         ssh-private-key: ${{ secrets.REPOSITORY_SSH_PRIVATE_KEY }}
+
+  #     - name: set env
+  #       run: echo "${{ needs.fetch.outputs.build_props }}" >> $GITHUB_ENV
+
+  #     - name: set app type and flavour
+  #       run: |
+  #         echo "HTML5_APP_TYPE=$([ "$APP_CHANNEL" = "usb" ] || [ "$APP_CHANNEL" = "cd" ] && echo "$APP_CHANNEL" || echo "desktop")" >> $GITHUB_ENV
+  #         echo "HTML5_APP_FLAVOUR=$([ "$APP_FLAVOUR" = "bsmart" ] && echo "default" || echo "$APP_FLAVOUR")" >> $GITHUB_ENV
+
+  #     - name: checkout html5-app
+  #       uses: actions/checkout@v2
+  #       with:
+  #         repository: alessandrotilli/gh-actions-app
+  #         path: html5-app
+  #         ssh-key: ${{ secrets.REPOSITORY_SSH_PRIVATE_KEY }}
+  #         ref: ${{ env.APP_TAG }}
+
+  #     - name: setup node
+  #       uses: actions/setup-node@v1
+  #       with:
+  #         node-version: '12.x'
+
+  #     - name: get yarn cache directory path
+  #       id: yarn-cache-app-dir-path
+  #       run: echo "::set-output name=dir::$(yarn cache dir)"
+
+  #     - uses: actions/cache@v2
+  #       id: yarn-cache-app
+  #       with:
+  #         path: ${{ steps.yarn-cache-app-dir-path.outputs.dir }}
+  #         key: ${{ runner.os }}-html5-app-yarn-${{ hashFiles('**/yarn.lock') }}
+  #         restore-keys: |
+  #           ${{ runner.os }}-html5-app-yarn-
+
+  #     - name: install deps
+  #       run: yarn install --network-concurrency 1
+  #       working-directory: ./html5-app
+
+  #     - name: build app
+  #       run: yarn build $HTML5_APP_TYPE:$HTML5_APP_FLAVOUR
+  #       working-directory: ./html5-app
+
+  #     - name: tar build folder
+  #       run: tar -C build/public/ -cf build.tar .
+  #       working-directory: ./html5-app
+
+  #     - name: upload html5-app build
+  #       uses: alexellis/upload-assets@0.2.3
+  #       env:
+  #         GITHUB_TOKEN: ${{ github.token }}
+  #       with:
+  #         asset_paths: '[ "html5-app/build.tar" ]'
+
+  # package:
+  #   name: Build and package electron
+  #   needs: [ fetch, build ]
+  #   if: github.event.action == 'published'
+  #   env:
+  #     CSC_LINK: ${{ secrets.MACOS_CERT_P12 }}
+  #     CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+  #     WIN_CSC_LINK: ${{ secrets.WIN_CERT_P12 }}
+  #     WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
+
+  #   runs-on: ${{ matrix.os }}
+  #   strategy:
+  #     matrix:
+  #       os: ${{ matrix.os == 'macOS-10.15' && '["app-desktop/dist/*/!(latest-deb)*.{yml,dmg,zip}"]' || '["app-desktop/dist/*/*.{yml,deb,exe,blockmap}"]' }}
+  #       os: [ubuntu-20.04, macOS-10.15]
+
+  #   steps:
+  #     - name: set env
+  #       run: echo "${{ needs.fetch.outputs.build_props }}" >> $GITHUB_ENV
+
+  #     - name: checkout app-desktop
+  #       uses: actions/checkout@v2
+  #       with:
+  #         repository: alessandrotilli/gh-actions-app-desktop
+  #         path: app-desktop
+  #         ssh-key: ${{ secrets.REPOSITORY_SSH_PRIVATE_KEY }}
+  #         ref: ${{ env.APP_DESKTOP_TAG }}
+
+  #     - if: matrix.os == 'ubuntu-20.04' && contains(env.APP_PLATFORMS, 'w')
+  #       name: install wine
+  #       run: |
+  #           sudo dpkg --add-architecture i386
+  #           wget -qO - https://dl.winehq.org/wine-builds/winehq.key | sudo apt-key add -
+  #           sudo apt-add-repository "deb https://dl.winehq.org/wine-builds/ubuntu $(lsb_release -cs) main"
+  #           sudo apt install --install-recommends winehq-stable
+
+  #     - name: setup node
+  #       uses: actions/setup-node@v1
+  #       with:
+  #         node-version: '12.x'
+
+  #     - name: keyscan bb
+  #       run: mkdir -p ~/.ssh && ssh-keyscan bitbucket.org >> ~/.ssh/known_hosts
+
+  #     - name: set ssh key
+  #       uses: webfactory/ssh-agent@v0.4.1
+  #       with:
+  #         ssh-private-key: ${{ secrets.REPOSITORY_SSH_PRIVATE_KEY }}
+
+  #     - name: get yarn cache directory path
+  #       id: yarn-cache-dir-path
+  #       run: echo "::set-output name=dir::$(yarn cache dir)"
+
+  #     - uses: actions/cache@v2
+  #       id: yarn-cache
+  #       with:
+  #         path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+  #         key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+  #         restore-keys: |
+  #           ${{ runner.os }}-yarn-
+
+  #     - name: install deps
+  #       run: yarn install
+  #       working-directory: app-desktop
+
+  #     - name: download html5-app build
+  #       id: download
+  #       run: |
+  #         mkdir html5-app-build
+  #         echo "::set-output name=download-path::$(echo $(pwd)/html5-app-build)"
+  #         JSON=$(curl \
+  #           -H "Accept: application/vnd.github.v3+json" \
+  #           -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+  #           https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ needs.fetch.outputs.release_tag }})
+  #         echo "$JSON" |
+  #           jq '.assets[] | select(.name | endswith("build.tar")) | [ .name, .url ] | @csv' |
+  #           tr -d '"\' |
+  #           while IFS=$',' read -r name url; do
+  #             curl -L \
+  #               -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+  #               -H 'Accept: application/octet-stream' $url > "html5-app-build/$name" ;
+  #           done
+
+  #     - name: untar artifact
+  #       id: untar-artifact
+  #       run: |
+  #         tar -xf build.tar
+  #         rm build.tar
+  #       working-directory: ${{steps.download.outputs.download-path}}
+
+  #     - name: ls html5-app build
+  #       run: ls -R html5-app-build
+
+  #     - name: build electron app
+  #       run: yarn build
+  #       working-directory: app-desktop
+  #       env:
+  #         APP_BUILD_DIR: ${{steps.download.outputs.download-path}}
+
+  #     - if: matrix.os == 'ubuntu-20.04'
+  #       name: package win
+  #       run: yarn package --win --publish never
+  #       working-directory: app-desktop
+
+  #     - if: matrix.os == 'ubuntu-20.04' && env.APP_CHANNEL != 'usb' && env.APP_CHANNEL != 'cd'
+  #       name: package linux
+  #       run: yarn package --linux --publish never
+  #       working-directory: app-desktop
+
+  #     - if: matrix.os == 'macOS-10.15'
+  #       name: package mac
+  #       run: yarn package --mac --publish never
+  #       working-directory: app-desktop
+  #       # le variabili qui sotto servono per la notarization
+  #       env:
+  #         APPLE_ID_PASS: ${{ secrets.APPLE_ID_PASS }}
+  #         ASC_PROVIDER: ${{ secrets.ASC_PROVIDER }}
+  #         APPLE_ID: ${{ secrets.APPLE_ID }}
+
+  #     - name: list dist folder
+  #       run: ls -R dist
+  #       working-directory: app-desktop
+
+  #       # per app cd e usb servono solo le cartelle "unpacked" win e mac
+  #     - if: matrix.os == 'ubuntu-20.04' && (env.APP_CHANNEL == 'usb' || env.APP_CHANNEL == 'cd')
+  #       name: (cd) zip win folder
+  #       run: zip -r -X -y -9 -q ../app.zip .
+  #       working-directory: app-desktop/dist/${{ env.APP_VERSION }}/win-ia32-unpacked
+
+  #     - if: matrix.os == 'macOS-10.15' && env.APP_CHANNEL == 'cd'
+  #       name: (cd) zip mac folder
+  #       run: tar -czpf ../app.tar.gz .
+  #       working-directory: app-desktop/dist/${{ env.APP_VERSION }}/mac
+
+  #     - name: upload release assets
+  #       if: env.APP_CHANNEL != 'usb' && env.APP_CHANNEL != 'cd'
+  #       uses: alexellis/upload-assets@0.2.3
+  #       env:
+  #         GITHUB_TOKEN: ${{ github.token }}
+  #       with:
+  #         asset_paths: ${{ matrix.os == 'macOS-10.15' && '["app-desktop/dist/*/!(latest-deb)*.{yml,dmg,zip}"]' || '["app-desktop/dist/*/*.{yml,deb,exe,blockmap}"]' }}
+
+  #     - name: upload cd/usb assets
+  #       if: env.APP_CHANNEL == 'usb' || env.APP_CHANNEL == 'cd'
+  #       uses: alexellis/upload-assets@0.2.3
+  #       env:
+  #         GITHUB_TOKEN: ${{ github.token }}
+  #       with:
+  #         asset_paths: ${{ matrix.os == 'macOS-10.15' && '["app-desktop/dist/*/*.{dmg,gz}"]' || '["app-desktop/dist/*/*.zip"]' }}

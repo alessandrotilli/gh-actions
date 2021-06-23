@@ -1,0 +1,119 @@
+name: Dev Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      flavour:
+        description: 'Flavour ( bsmart | dea | ecc...)'
+        required: true
+        default: 'bsmart'
+      channel:
+        description: 'Channel ( production_v2 | production | development | cd | usb )'
+        required: true
+        default: 'development'
+      web_env:
+        description: 'Web env (staging | production)'
+        required: true
+        default: 'staging'
+      html5_app_tag:
+        description: 'Tag html5-app'
+        required: true
+        default: 'develop'
+      app_desktop_tag:
+        description: 'Tag app-desktop'
+        required: true
+        default: 'develop'
+      app_version:
+        description: 'App version (x.y.z)'
+        required: true
+        default: '0.0.1'
+      locale:
+        description: 'Locale ( auto | it | en ... )'
+        required: false
+        default: 'auto'
+      needs_activation:
+        description: 'Needs activation (valid only for usb)'
+        required: false
+        default: 'false'
+      mandatory_from:
+        description: 'Mandatory from version (x.y.z)'
+        required: false
+        default: ''
+      app_platforms:
+        description: 'Platforms (blank for defaults, w for Win, m for Mac, l for linux, can be combined)'
+        required: false
+        default: 'wml'
+
+jobs:
+  dev_build:
+    name: Dev Release
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Generate tag
+        run: echo '::set-output name=tag::${{ github.event.inputs.flavour }}-${{ github.event.inputs.channel }}-${{ github.event.inputs.app_version }}-dev'
+        id: tag-generator
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.tag-generator.outputs.tag }}
+          release_name: Release ${{ steps.tag-generator.outputs.tag }}
+          body: |
+            | - | - |
+            | ---: | :--- |
+            | **version** | ${{ github.event.inputs.app_version }} |
+            | **flavour** | ${{ github.event.inputs.flavour }} |
+            | **channel** | ${{ github.event.inputs.channel }} |
+            | **web env** | ${{ github.event.inputs.web_env }} |
+            | **locale** | ${{ github.event.inputs.locale }} |
+            | **html5-app** | ${{ github.event.inputs.html5_app_tag }} |
+            | **app-desktop** | ${{ github.event.inputs.app_desktop_tag }} |
+            | **required version** | ${{ github.event.inputs.mandatory_from }} |
+            | **platforms** | ${{ github.event.inputs.app_platforms }} |
+
+          draft: true
+          prerelease: true
+
+      - name: Generate props file
+        run: |
+          cat <<EOT >> build.props
+          APP_FLAVOUR=${{ github.event.inputs.flavour }}
+          APP_CHANNEL=${{ github.event.inputs.channel }}
+          APP_SERVER=${{ github.event.inputs.web_env }}
+          APP_VERSION=${{ github.event.inputs.app_version }}
+          APP_LOCALE=${{ github.event.inputs.locale }}
+          APP_TAG=${{ github.event.inputs.html5_app_tag }}
+          APP_DESKTOP_TAG=${{ github.event.inputs.app_desktop_tag }}
+          APP_PLATFORMS=${{ github.event.inputs.app_platforms }}
+          MANDATORY_FROM_VERSION=${{ github.event.inputs.mandatory_from }}
+          DEV_RELEASE=true
+          EOT
+
+      - name: Upload build.props
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PRIVATE_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./build.props
+          asset_name: build.props
+          asset_content_type: text/plain
+
+      - name: Output asset download url
+        run: echo ${{ steps.upload-release-asset.outputs.browser_download_url }}
+
+      - name: Publish release
+        run: |
+            curl \
+            -X PATCH \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: token ${{ secrets.GH_PRIVATE_TOKEN }}" \
+            https://api.github.com/repos/${{ github.repository }}/releases/${{ steps.create_release.outputs.id }} \
+            -d '{ "draft": false }'
