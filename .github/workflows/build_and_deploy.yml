@@ -74,13 +74,13 @@ jobs:
     if: github.event.action == 'published'
 
     steps:
-      - name: keyscan bb
-        run: mkdir -p ~/.ssh && ssh-keyscan bitbucket.org >> ~/.ssh/known_hosts
+      # - name: keyscan bb
+      #   run: mkdir -p ~/.ssh && ssh-keyscan bitbucket.org >> ~/.ssh/known_hosts
 
-      - name: set ssh key
-        uses: webfactory/ssh-agent@v0.4.1
-        with:
-          ssh-private-key: ${{ secrets.REPOSITORY_SSH_PRIVATE_KEY }}
+      # - name: set ssh key
+      #   uses: webfactory/ssh-agent@v0.4.1
+      #   with:
+      #     ssh-private-key: ${{ secrets.REPOSITORY_SSH_PRIVATE_KEY }}
 
       - name: set env
         run: echo "${{ needs.fetch.outputs.build_props }}" >> $GITHUB_ENV
@@ -147,7 +147,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: ${{ needs.fetch.outputs.skip_mac == 'true' && '[ubuntu-20.04]' || '[ubuntu-20.04, macOS-10.15]' }}
+        os: >-
+          ${{
+            needs.fetch.outputs.skip_linux == 'true' && needs.fetch.outputs.skip_win == 'true' && fromJson('["macOS-10.15"]') ||
+            needs.fetch.outputs.skip_mac == 'true' && fromJson('["ubuntu-20.04"]') ||
+            fromJson('["ubuntu-20.04", "macOS-10.15"]')
+          }}
 
     steps:
       - name: set env
@@ -232,25 +237,25 @@ jobs:
       #   env:
       #     APP_BUILD_DIR: ${{steps.download.outputs.download-path}}
 
-      - if: matrix.os == 'ubuntu-20.04'
+      - if: matrix.os == 'ubuntu-20.04' && needs.fetch.outputs.skip_win == 'false'
         name: package win
         run: echo yarn package --win --publish never
-        working-directory: app-desktop
+        # working-directory: app-desktop
 
-      - if: matrix.os == 'ubuntu-20.04' && env.APP_CHANNEL != 'usb' && env.APP_CHANNEL != 'cd'
+      - if: matrix.os == 'ubuntu-20.04' && env.APP_CHANNEL != 'usb' && env.APP_CHANNEL != 'cd' && needs.fetch.outputs.skip_linux == 'false'
         name: package linux
         run: echo yarn package --linux --publish never
-        working-directory: app-desktop
+        # working-directory: app-desktop
 
-      - if: matrix.os == 'macOS-10.15'
+      - if: matrix.os == 'macOS-10.15' && needs.fetch.outputs.skip_mac == 'false'
         name: package mac
         run: echo yarn package --mac --publish never
-        working-directory: app-desktop
+        # working-directory: app-desktop
         # le variabili qui sotto servono per la notarization
         env:
-          APPLE_ID_PASS: ${{ secrets.APPLE_ID_PASS }}
-          ASC_PROVIDER: ${{ secrets.ASC_PROVIDER }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASS: ${{ needs.fetch.outputs.dev_release == 'true' && secrets.APPLE_ID_PASS  || '' }}
+          ASC_PROVIDER: ${{ needs.fetch.outputs.dev_release == 'true' && secrets.ASC_PROVIDER || '' }}
+          APPLE_ID: ${{ needs.fetch.outputs.dev_release == 'true' && secrets.APPLE_ID || '' }}
 
       # - name: list dist folder
       #   run: ls -R dist
