@@ -91,8 +91,8 @@ jobs:
           APP_TAG=${{ github.event.inputs.html5_app_tag }}
           APP_DESKTOP_TAG=${{ github.event.inputs.app_desktop_tag }}
           APP_PLATFORMS=${{ github.event.inputs.app_platforms }}
-          MANDATORY_FROM_VERSION=${{ github.event.inputs.mandatory_from }}
           DEV_RELEASE=true
+          MANDATORY_FROM_VERSION=${{ github.event.inputs.mandatory_from }}
           EOT
 
       - name: Upload build.props
