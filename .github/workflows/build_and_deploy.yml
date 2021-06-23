@@ -43,11 +43,16 @@ jobs:
           echo "::set-output name=upload_url::$UPLOAD_URL"
         id: read_props
 
-      - name: print output
-        id: env_props
+      - name: set env
         run: |
           echo ${{ steps.read_props.outputs.props }}
           echo "${{ steps.read_props.outputs.props }}" >> $GITHUB_ENV
+
+      - name: set outputs
+        id: env_props
+        run: |
+          echo platforms "${{ env.APP_PLATFORMS }}"
+          echo dev_release "${{ env.DEV_RELEASE }}"
           echo "::set-output name=skip_win::${{ contains(env.APP_PLATFORMS, 'w') == false }}"
           echo "::set-output name=skip_mac::${{ contains(env.APP_PLATFORMS, 'm') == false }}"
           echo "::set-output name=skip_linux::${{ contains(env.APP_PLATFORMS, 'l') == false }}"
