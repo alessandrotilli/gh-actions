@@ -74,9 +74,12 @@ jobs:
     name: Build html5-app
     runs-on: ubuntu-20.04
     needs: fetch
-    if: github.event.action == 'published' && needs.fetch.outputs.build_url != ''
+    if: github.event.action == 'published'
 
     steps:
+      - name: check prev build
+        run: echo "${{ needs.fetch.outputs.build_url }}"
+
       # - name: keyscan bb
       #   run: mkdir -p ~/.ssh && ssh-keyscan bitbucket.org >> ~/.ssh/known_hosts
 
@@ -85,57 +88,76 @@ jobs:
       #   with:
       #     ssh-private-key: ${{ secrets.REPOSITORY_SSH_PRIVATE_KEY }}
 
-      - name: set env
-        run: echo "${{ needs.fetch.outputs.build_props }}" >> $GITHUB_ENV
 
-      - name: set app type and flavour
-        run: |
-          echo "HTML5_APP_TYPE=$([ "$APP_CHANNEL" = "usb" ] || [ "$APP_CHANNEL" = "cd" ] && echo "$APP_CHANNEL" || echo "desktop")" >> $GITHUB_ENV
-          echo "HTML5_APP_FLAVOUR=$([ "$APP_FLAVOUR" = "bsmart" ] && echo "default" || echo "$APP_FLAVOUR")" >> $GITHUB_ENV
+      - name: ls
+        run: ls -R .
 
-      - name: checkout html5-app
+      - name: checkout
         uses: actions/checkout@v2
         with:
-          repository: alessandrotilli/gh-actions-app
-          path: html5-app
-          ssh-key: ${{ secrets.REPOSITORY_SSH_PRIVATE_KEY }}
-          ref: ${{ env.APP_TAG }}
+          ref: main
 
-      - name: setup node
-        uses: actions/setup-node@v1
-        with:
-          node-version: '12.x'
-
-      - name: get yarn cache directory path
-        id: yarn-cache-app-dir-path
-        run: echo "::set-output name=dir::$(yarn cache dir)"
-
-      - uses: actions/cache@v2
-        id: yarn-cache-app
-        with:
-          path: ${{ steps.yarn-cache-app-dir-path.outputs.dir }}
-          key: ${{ runner.os }}-html5-app-yarn-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-html5-app-yarn-
-
-      - name: install deps
-        run: yarn install --network-concurrency 1
-        working-directory: ./html5-app
+      - name: ls
+        run: ls -R .
 
       - name: build app
-        run: yarn build $HTML5_APP_TYPE:$HTML5_APP_FLAVOUR
-        working-directory: ./html5-app
-
-      - name: tar build folder
-        run: tar -C build/public/ -cf build.tar .
-        working-directory: ./html5-app
-
-      - name: upload html5-app build
-        uses: alexellis/upload-assets@0.2.3
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+        if: needs.fetch.outputs.build_url == ''
+        uses: ./.github/actions/build_html5_app
         with:
-          asset_paths: '[ "html5-app/build.tar" ]'
+          build_props: ${{ needs.fetch.outputs.build_props }}
+
+
+      # - name: set env
+      #   run: echo "${{ needs.fetch.outputs.build_props }}" >> $GITHUB_ENV
+
+      # - name: set app type and flavour
+      #   run: |
+      #     echo "HTML5_APP_TYPE=$([ "$APP_CHANNEL" = "usb" ] || [ "$APP_CHANNEL" = "cd" ] && echo "$APP_CHANNEL" || echo "desktop")" >> $GITHUB_ENV
+      #     echo "HTML5_APP_FLAVOUR=$([ "$APP_FLAVOUR" = "bsmart" ] && echo "default" || echo "$APP_FLAVOUR")" >> $GITHUB_ENV
+
+      # - name: checkout html5-app
+      #   uses: actions/checkout@v2
+      #   with:
+      #     repository: alessandrotilli/gh-actions-app
+      #     path: html5-app
+      #     ssh-key: ${{ secrets.REPOSITORY_SSH_PRIVATE_KEY }}
+      #     ref: ${{ env.APP_TAG }}
+
+      # - name: setup node
+      #   uses: actions/setup-node@v1
+      #   with:
+      #     node-version: '12.x'
+
+      # - name: get yarn cache directory path
+      #   id: yarn-cache-app-dir-path
+      #   run: echo "::set-output name=dir::$(yarn cache dir)"
+
+      # - uses: actions/cache@v2
+      #   id: yarn-cache-app
+      #   with:
+      #     path: ${{ steps.yarn-cache-app-dir-path.outputs.dir }}
+      #     key: ${{ runner.os }}-html5-app-yarn-${{ hashFiles('**/yarn.lock') }}
+      #     restore-keys: |
+      #       ${{ runner.os }}-html5-app-yarn-
+
+      # - name: install deps
+      #   run: yarn install --network-concurrency 1
+      #   working-directory: ./html5-app
+
+      # - name: build app
+      #   run: yarn build $HTML5_APP_TYPE:$HTML5_APP_FLAVOUR
+      #   working-directory: ./html5-app
+
+      # - name: tar build folder
+      #   run: tar -C build/public/ -cf build.tar .
+      #   working-directory: ./html5-app
+
+      # - name: upload html5-app build
+      #   uses: alexellis/upload-assets@0.2.3
+      #   env:
+      #     GITHUB_TOKEN: ${{ github.token }}
+      #   with:
+      #     asset_paths: '[ "html5-app/build.tar" ]'
 
   package:
     name: Build and package electron
