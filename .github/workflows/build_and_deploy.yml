@@ -33,6 +33,7 @@ jobs:
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ steps.get-tag.outputs.tag }})
           ASSET_URL=$(jq '.assets[] | select(.name == "build.props").url' <<< $JSON | tr -d '"')
+          BUILD_URL=$(jq '.assets[] | select(.name == "build.tar").url' <<< $JSON | tr -d '"')
           UPLOAD_URL=$(jq '.upload_url' <<< $JSON | tr -d '"')
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H 'Accept: application/octet-stream' $ASSET_URL >> build.props
           export BUILD_PROPS="$(cat build.props)"
@@ -41,6 +42,7 @@ jobs:
           BUILD_PROPS="${BUILD_PROPS//$'\r'/'%0D'}"
           echo "::set-output name=props::$BUILD_PROPS"
           echo "::set-output name=upload_url::$UPLOAD_URL"
+          echo "::set-output name=build_url::$BUILD_URL"
         id: read_props
 
       - name: set env
@@ -61,6 +63,7 @@ jobs:
     outputs:
       build_props: ${{ steps.read_props.outputs.props }}
       upload_url: ${{ steps.read_props.outputs.upload_url }}
+      build_url: ${{ steps.read_props.outputs.build_url }}
       release_tag: ${{ steps.get-tag.outputs.tag }}
       skip_win: ${{ steps.env_props.outputs.skip_win }}
       skip_mac: ${{ steps.env_props.outputs.skip_mac }}
@@ -71,7 +74,7 @@ jobs:
     name: Build html5-app
     runs-on: ubuntu-20.04
     needs: fetch
-    if: github.event.action == 'published'
+    if: github.event.action == 'published' && needs.fetch.outputs.build_url != ''
 
     steps:
       # - name: keyscan bb
