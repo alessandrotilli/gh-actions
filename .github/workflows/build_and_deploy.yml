@@ -74,7 +74,7 @@ jobs:
     name: Build html5-app
     runs-on: ubuntu-20.04
     needs: fetch
-    if: github.event.action == 'published' && needs.fetch.outputs.build_url != ''
+    if: github.event.action == 'published'
 
     steps:
       # - name: keyscan bb
@@ -85,15 +85,21 @@ jobs:
       #   with:
       #     ssh-private-key: ${{ secrets.REPOSITORY_SSH_PRIVATE_KEY }}
 
+      - name: check previous build
+        run: echo prev url "${{ needs.fetch.outputs.build_url }}"
+
       - name: set env
+        if: needs.fetch.outputs.build_url == ''
         run: echo "${{ needs.fetch.outputs.build_props }}" >> $GITHUB_ENV
 
       - name: set app type and flavour
+        if: needs.fetch.outputs.build_url == ''
         run: |
           echo "HTML5_APP_TYPE=$([ "$APP_CHANNEL" = "usb" ] || [ "$APP_CHANNEL" = "cd" ] && echo "$APP_CHANNEL" || echo "desktop")" >> $GITHUB_ENV
           echo "HTML5_APP_FLAVOUR=$([ "$APP_FLAVOUR" = "bsmart" ] && echo "default" || echo "$APP_FLAVOUR")" >> $GITHUB_ENV
 
       - name: checkout html5-app
+        if: needs.fetch.outputs.build_url == ''
         uses: actions/checkout@v2
         with:
           repository: alessandrotilli/gh-actions-app
@@ -102,15 +108,18 @@ jobs:
           ref: ${{ env.APP_TAG }}
 
       - name: setup node
+        if: needs.fetch.outputs.build_url == ''
         uses: actions/setup-node@v1
         with:
           node-version: '12.x'
 
       - name: get yarn cache directory path
+        if: needs.fetch.outputs.build_url == ''
         id: yarn-cache-app-dir-path
         run: echo "::set-output name=dir::$(yarn cache dir)"
 
       - uses: actions/cache@v2
+        if: needs.fetch.outputs.build_url == ''
         id: yarn-cache-app
         with:
           path: ${{ steps.yarn-cache-app-dir-path.outputs.dir }}
@@ -119,18 +128,22 @@ jobs:
             ${{ runner.os }}-html5-app-yarn-
 
       - name: install deps
+        if: needs.fetch.outputs.build_url == ''
         run: yarn install --network-concurrency 1
         working-directory: ./html5-app
 
       - name: build app
+        if: needs.fetch.outputs.build_url == ''
         run: yarn build $HTML5_APP_TYPE:$HTML5_APP_FLAVOUR
         working-directory: ./html5-app
 
       - name: tar build folder
+        if: needs.fetch.outputs.build_url == ''
         run: tar -C build/public/ -cf build.tar .
         working-directory: ./html5-app
 
       - name: upload html5-app build
+        if: needs.fetch.outputs.build_url == ''
         uses: alexellis/upload-assets@0.2.3
         env:
           GITHUB_TOKEN: ${{ github.token }}
