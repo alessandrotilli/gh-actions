@@ -162,6 +162,7 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: >-
           ${{
@@ -265,7 +266,8 @@ jobs:
 
       - if: matrix.os == 'macOS-10.15' && needs.fetch.outputs.skip_mac == 'false'
         name: package mac
-        run: echo yarn package --mac --publish never
+        run: exit 1
+        # run: echo yarn package --mac --publish never
         # working-directory: app-desktop
         # le variabili qui sotto servono per la notarization
         env:
