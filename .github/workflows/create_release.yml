@@ -86,6 +86,7 @@ jobs:
           APP_TAG=${{ github.event.inputs.html5_app_tag }}
           APP_DESKTOP_TAG=${{ github.event.inputs.app_desktop_tag }}
           MANDATORY_FROM_VERSION=${{ github.event.inputs.mandatory_from }}
+          APP_PLATFORMS=wml
           EOT
 
       - name: Upload build.props
