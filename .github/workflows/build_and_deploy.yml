@@ -34,6 +34,11 @@ jobs:
             https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ steps.get-tag.outputs.tag }})
           ASSET_URL=$(jq '.assets[] | select(.name == "build.props").url' <<< $JSON | tr -d '"')
           BUILD_URL=$(jq '.assets[] | select(.name == "build.tar").url' <<< $JSON | tr -d '"')
+          BUILD_MAC=$(jq '.assets[] | select(.name | endswith(".dmg")).url' <<< $JSON | tr -d '"')
+          BUILD_WIN=$(jq '.assets[] | select(.name | endswith(".exe")).url' <<< $JSON | tr -d '"')
+          BUILD_DEB=$(jq '.assets[] | select(.name | endswith(".deb")).url' <<< $JSON | tr -d '"')
+          BUILD_CD_WIN=$(jq '.assets[] | select(.name == "app.zip").url' <<< $JSON | tr -d '"')
+          BUILD_CD_MAC=$(jq '.assets[] | select(.name == "app.tar.gz").url' <<< $JSON | tr -d '"')
           UPLOAD_URL=$(jq '.upload_url' <<< $JSON | tr -d '"')
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H 'Accept: application/octet-stream' $ASSET_URL >> build.props
           export BUILD_PROPS="$(cat build.props)"
@@ -43,6 +48,11 @@ jobs:
           echo "::set-output name=props::$BUILD_PROPS"
           echo "::set-output name=upload_url::$UPLOAD_URL"
           echo "::set-output name=build_url::$BUILD_URL"
+          echo "::set-output name=build_win::$BUILD_WIN"
+          echo "::set-output name=build_mac::$BUILD_MAC"
+          echo "::set-output name=build_deb::$BUILD_DEB"
+          echo "::set-output name=build_cd_win::$BUILD_CD_WIN"
+          echo "::set-output name=build_cd_mac::$BUILD_CD_MAC"
         id: read_props
 
       - name: set env
@@ -55,9 +65,9 @@ jobs:
         run: |
           echo platforms "${{ env.APP_PLATFORMS }}"
           echo dev_release "${{ env.DEV_RELEASE }}"
-          echo "::set-output name=skip_win::${{ contains(env.APP_PLATFORMS, 'w') == false }}"
-          echo "::set-output name=skip_mac::${{ contains(env.APP_PLATFORMS, 'm') == false }}"
-          echo "::set-output name=skip_linux::${{ contains(env.APP_PLATFORMS, 'l') == false }}"
+          echo "::set-output name=skip_win::${{ contains(env.APP_PLATFORMS, 'w') == false || steps.read_props.outputs.build_win != '' || steps.read_props.outputs.build_cd_win != '' }}"
+          echo "::set-output name=skip_mac::${{ contains(env.APP_PLATFORMS, 'm') == false || steps.read_props.outputs.build_mac != '' || steps.read_props.outputs.build_cd_mac != '' }}"
+          echo "::set-output name=skip_linux::${{ contains(env.APP_PLATFORMS, 'l') == false || steps.read_props.outputs.build_deb != '' }}"
           echo "::set-output name=dev_release::${{ env.DEV_RELEASE == 'true' }}"
 
     outputs:
