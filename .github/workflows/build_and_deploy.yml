@@ -59,11 +59,9 @@ jobs:
       - name: set outputs
         id: env_props
         run: |
-          echo platforms "${{ env.APP_PLATFORMS }}"
-          echo dev_release "${{ env.DEV_RELEASE }}"
           echo "::set-output name=skip_win::${{ contains(env.APP_PLATFORMS, 'w') == false || steps.read_props.outputs.build_win != '' }}"
           echo "::set-output name=skip_mac::${{ contains(env.APP_PLATFORMS, 'm') == false || steps.read_props.outputs.build_mac != '' }}"
-          echo "::set-output name=skip_linux::${{ contains(env.APP_PLATFORMS, 'l') == false || steps.read_props.outputs.build_deb != '' }}"
+          echo "::set-output name=skip_linux::${{ env.APP_CHANNEL == 'cd' || env.APP_CHANNEL == 'usb' || contains(env.APP_PLATFORMS, 'l') == false || steps.read_props.outputs.build_deb != '' }}"
           echo "::set-output name=dev_release::${{ env.DEV_RELEASE == 'true' }}"
 
     outputs:
