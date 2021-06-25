@@ -176,12 +176,16 @@ jobs:
       matrix:
         os: >-
           ${{
-            needs.fetch.outputs.skip_linux == 'true' && needs.fetch.outputs.skip_win == 'true' && fromJson('["macOS-10.15"]') ||
             needs.fetch.outputs.skip_mac == 'true' && fromJson('["ubuntu-20.04"]') ||
+            needs.fetch.outputs.skip_linux == 'true' && needs.fetch.outputs.skip_win == 'true' && fromJson('["macOS-10.15"]') ||
             fromJson('["ubuntu-20.04", "macOS-10.15"]')
           }}
 
     steps:
+      - name: exit if ther's nothing to do
+        if: needs.fetch.outputs.skip_linux == 'true' && needs.fetch.outputs.skip_win == 'true' && needs.fetch.outputs.skip_mac == 'true'
+        run: exit 1
+
       - name: set env
         run: echo "${{ needs.fetch.outputs.build_props }}" >> $GITHUB_ENV
 
