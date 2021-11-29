@@ -197,6 +197,7 @@ jobs:
             sudo dpkg --add-architecture i386
             wget -qO - https://dl.winehq.org/wine-builds/winehq.key | sudo apt-key add -
             sudo apt-add-repository "deb https://dl.winehq.org/wine-builds/ubuntu $(lsb_release -cs) main"
+            sudo apt install -y --allow-downgrades libpcre2-8-0=10.34-7
             sudo apt install --install-recommends winehq-stable
 
       - name: setup node
