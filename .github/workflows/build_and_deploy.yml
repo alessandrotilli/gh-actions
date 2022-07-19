@@ -9,7 +9,7 @@ on:
 jobs:
   fetch:
     name: Fetch release props
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: checkout
         uses: actions/checkout@v2
@@ -76,7 +76,7 @@ jobs:
 
   build:
     name: Build html5-app
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: fetch
     if: github.event.action == 'published'
 
@@ -170,9 +170,9 @@ jobs:
       matrix:
         os: >-
           ${{
-            needs.fetch.outputs.skip_mac == 'true' && fromJson('["ubuntu-20.04"]') ||
+            needs.fetch.outputs.skip_mac == 'true' && fromJson('["ubuntu-22.04"]') ||
             needs.fetch.outputs.skip_linux == 'true' && needs.fetch.outputs.skip_win == 'true' && fromJson('["macOS-10.15"]') ||
-            fromJson('["ubuntu-20.04", "macOS-10.15"]')
+            fromJson('["ubuntu-22.04", "macOS-10.15"]')
           }}
 
     steps:
@@ -191,7 +191,7 @@ jobs:
           ssh-key: ${{ secrets.REPOSITORY_SSH_PRIVATE_KEY }}
           # ref: ${{ env.APP_DESKTOP_TAG }}
 
-      - if: matrix.os == 'ubuntu-20.04' && needs.fetch.outputs.skip_win == 'false'
+      - if: matrix.os == 'ubuntu-22.04' && needs.fetch.outputs.skip_win == 'false'
         name: install wine
         run: |
             sudo dpkg --add-architecture i386
@@ -262,12 +262,12 @@ jobs:
         env:
           APP_BUILD_DIR: ${{steps.download.outputs.download-path}}
 
-      - if: matrix.os == 'ubuntu-20.04' && needs.fetch.outputs.skip_win == 'false'
+      - if: matrix.os == 'ubuntu-22.04' && needs.fetch.outputs.skip_win == 'false'
         name: package win
         run: yarn package --win --publish never
         working-directory: app-desktop
 
-      - if: matrix.os == 'ubuntu-20.04' && env.APP_CHANNEL != 'usb' && env.APP_CHANNEL != 'cd' && needs.fetch.outputs.skip_linux == 'false'
+      - if: matrix.os == 'ubuntu-22.04' && env.APP_CHANNEL != 'usb' && env.APP_CHANNEL != 'cd' && needs.fetch.outputs.skip_linux == 'false'
         name: package linux
         run: yarn package --linux --publish never
         working-directory: app-desktop
@@ -287,7 +287,7 @@ jobs:
         working-directory: app-desktop
 
         # per app cd e usb servono solo le cartelle "unpacked" win e mac
-      - if: matrix.os == 'ubuntu-20.04' && (env.APP_CHANNEL == 'usb' || env.APP_CHANNEL == 'cd')
+      - if: matrix.os == 'ubuntu-22.04' && (env.APP_CHANNEL == 'usb' || env.APP_CHANNEL == 'cd')
         name: (cd) zip win folder
         run: zip -r -X -y -9 -q ../app.zip .
         working-directory: app-desktop/dist/${{ env.APP_VERSION }}/win-ia32-unpacked
