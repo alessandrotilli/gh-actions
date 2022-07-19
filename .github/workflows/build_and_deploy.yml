@@ -192,13 +192,18 @@ jobs:
           # ref: ${{ env.APP_DESKTOP_TAG }}
 
       - if: matrix.os == 'ubuntu-20.04' && needs.fetch.outputs.skip_win == 'false'
+        name: wine fix
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
+          sudo apt-get update -qq
+          sudo apt-get install -yqq --allow-downgrades libpcre2-8-0/focal libpcre2-16-0/focal libpcre2-32-0/focal libpcre2-posix2/focal
+
+      - if: matrix.os == 'ubuntu-20.04' && needs.fetch.outputs.skip_win == 'false'
         name: install wine
         run: |
-            sudo dpkg --add-architecture i386
-            wget -qO - https://dl.winehq.org/wine-builds/winehq.key | sudo apt-key add -
-            sudo apt-add-repository "deb https://dl.winehq.org/wine-builds/ubuntu $(lsb_release -cs) main"
-            sudo apt install -y --allow-downgrades libpcre2-8-0=10.34-7
-            sudo apt install --install-recommends winehq-stable
+          sudo dpkg --add-architecture i386
+          sudo apt-get update -qq
+          sudo apt-get install -yqq wine-stable
 
       - name: setup node
         uses: actions/setup-node@v1
